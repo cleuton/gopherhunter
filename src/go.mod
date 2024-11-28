@@ -4,7 +4,7 @@ go 1.22.4
 
 require (
 	github.com/gopxl/pixel/v2 v2.3.0
-	golang.org/x/image v0.22.0
+	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
 )
 
 require (
@@ -14,4 +14,5 @@ require (
 	github.com/gopxl/glhf/v2 v2.0.0 // indirect
 	github.com/gopxl/mainthread/v2 v2.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	golang.org/x/image v0.22.0 // indirect
 )
