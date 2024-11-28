@@ -33,6 +33,7 @@ func run() {
 		matrices         []pixel.Matrix
 		elementsToRemove []int
 		backSpeedFactor  float64 = 100
+		inverted         bool    = false
 	)
 
 	cfg := opengl.WindowConfig{
@@ -65,6 +66,18 @@ func run() {
 		}
 	}
 
+	snakeSpriteSheet, err := loadPicture("../images/snakesSpriteSheet.png")
+	if err != nil {
+		panic(err)
+	}
+
+	var snakeSprites []pixel.Rect
+	for x := snakeSpriteSheet.Bounds().Min.X; x < snakeSpriteSheet.Bounds().Max.X; x += 128 {
+		for y := snakeSpriteSheet.Bounds().Min.Y; y < snakeSpriteSheet.Bounds().Max.Y; y += 31 {
+			snakeSprites = append(snakeSprites, pixel.R(x, y, x+120, y+31))
+		}
+	}
+
 	last := time.Now()
 
 	for !win.Closed() {
@@ -77,6 +90,17 @@ func run() {
 			mouseX := win.MousePosition().X
 			currentX = append(currentX, mouseX)
 			matrices = append(matrices, pixel.IM.Moved(pixel.V(mouseX, 350)))
+		}
+
+		if dt > 0.5 {
+			ix := 0
+			if inverted {
+				ix = 1
+			}
+
+			snake := pixel.NewSprite(snakeSpriteSheet, snakeSprites[ix])
+			snake.Draw(win, pixel.IM.Moved(pixel.V(100, 200+snake.Frame().H()/2)))
+			inverted = !inverted
 		}
 
 		elementsToRemove = []int{}
