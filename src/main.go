@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"os"
 	"time"
@@ -11,6 +12,59 @@ import (
 	"github.com/gopxl/pixel/v2/backends/opengl"
 	"golang.org/x/exp/rand"
 )
+
+type CommonNpcProperties struct {
+	sprite1       *pixel.Sprite
+	sprite2       *pixel.Sprite
+	position      pixel.Vec
+	height        float64
+	width         float64
+	secondsToFlip float64
+	speed         float64
+	horizontalWay float64
+	inverted      bool
+}
+
+type Npc interface {
+	move(dt float64) bool
+	draw(pixel.Target)
+	colide(pixel.Rect) bool
+}
+
+func (c *CommonNpcProperties) move(dt float64) bool {
+	c.position.X = c.position.X + c.horizontalWay*(c.speed*dt)
+	c.secondsToFlip = c.secondsToFlip + dt
+	if c.secondsToFlip > 0.5 {
+		c.inverted = !c.inverted
+		c.secondsToFlip = 0
+	}
+	return c.position.X < (-c.width / 2)
+}
+func (c *CommonNpcProperties) draw(target pixel.Target) {
+	if c.inverted {
+		c.sprite2.Draw(target, pixel.IM.Moved(c.position))
+	} else {
+		c.sprite1.Draw(target, pixel.IM.Moved(c.position))
+	}
+}
+
+func (c CommonNpcProperties) colide(rect pixel.Rect) bool {
+	return rect.Contains(c.position)
+}
+
+type Crab struct {
+	CommonNpcProperties
+	currentJumpHeight float64
+}
+
+type Snake struct {
+	CommonNpcProperties
+}
+
+type Mug struct {
+	CommonNpcProperties
+	flyingHeight float64
+}
 
 func loadPicture(path string) (pixel.Picture, error) {
 	file, err := os.Open(path)
@@ -33,7 +87,17 @@ func run() {
 		matrices         []pixel.Matrix
 		elementsToRemove []int
 		backSpeedFactor  float64 = 100
-		inverted         bool    = false
+		npcs                     = []Npc{}
+		//lastTimeNpcAdded           = time.Now()
+		//minNpcLaunchTime           = 5 // seconds
+		//crabSpeed                  = 100.0
+		snakeSpeed = 100.0
+		//mugSpeed                   = 100.0
+		//crabJumpSpeed              = 100.0
+		//crabJumpMaxHeight          = 100.0
+		//crabHorizontalWay          = -1.0
+		//mugHorizontalWay           = 1.0
+		snakeHorizontalWay = -1.0
 	)
 
 	cfg := opengl.WindowConfig{
@@ -74,11 +138,12 @@ func run() {
 	var snakeSprites []pixel.Rect
 	for x := snakeSpriteSheet.Bounds().Min.X; x < snakeSpriteSheet.Bounds().Max.X; x += 128 {
 		for y := snakeSpriteSheet.Bounds().Min.Y; y < snakeSpriteSheet.Bounds().Max.Y; y += 31 {
-			snakeSprites = append(snakeSprites, pixel.R(x, y, x+120, y+31))
+			snakeSprites = append(snakeSprites, pixel.R(x, y, x+128, y+31))
 		}
 	}
 
 	last := time.Now()
+	runOneTime := false
 
 	for !win.Closed() {
 		dt := time.Since(last).Seconds()
@@ -92,15 +157,34 @@ func run() {
 			matrices = append(matrices, pixel.IM.Moved(pixel.V(mouseX, 350)))
 		}
 
-		if dt > 0.5 {
-			ix := 0
-			if inverted {
-				ix = 1
-			}
+		//if time.Since(lastTimeNpcAdded).Seconds() > minNpcLaunchTime {
 
-			snake := pixel.NewSprite(snakeSpriteSheet, snakeSprites[ix])
-			snake.Draw(win, pixel.IM.Moved(pixel.V(100, 200+snake.Frame().H()/2)))
-			inverted = !inverted
+		if !runOneTime {
+			runOneTime = true
+			fmt.Println("Adding npc")
+			// Add an Npc
+			snake := &Snake{
+				CommonNpcProperties{
+					sprite1:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[0]),
+					sprite2:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[1]),
+					position:      pixel.V(1024, 200+31/2),
+					height:        31,
+					width:         120,
+					secondsToFlip: 0,
+					speed:         snakeSpeed,
+					horizontalWay: snakeHorizontalWay,
+					inverted:      false,
+				},
+			}
+			npcs = append(npcs, snake)
+		}
+
+		npcsToRemove := []int{}
+		for i, npc := range npcs {
+			if npc.move(dt) {
+				npcsToRemove = append(npcsToRemove, i)
+			}
+			npc.draw(win)
 		}
 
 		elementsToRemove = []int{}
@@ -118,6 +202,12 @@ func run() {
 			matrices = append(matrices[:i], matrices[i+1:]...)
 			currentX = append(currentX[:i], currentX[i+1:]...)
 		}
+
+		for _, i := range npcsToRemove {
+			fmt.Println("Removing npc")
+			npcs = append(npcs[:i], npcs[i+1:]...)
+		}
+
 		win.Update()
 	}
 }
