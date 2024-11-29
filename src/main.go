@@ -70,47 +70,53 @@ type Mug struct {
 
 type Player struct {
 	CommonNpcProperties
-	jumpLimit                float64
-	isJumping                bool
-	isFalling                bool
-	isLoweingSpeed           bool
-	isComingBack             bool
-	currentJumpHeight        float64
-	currentBackPosition      float64
-	originalVerticalPosition float64
+	jumpLimit                  float64
+	isJumping                  bool
+	isFalling                  bool
+	isLoweingSpeed             bool
+	isComingBack               bool
+	currentJumpHeight          float64
+	currentBackPosition        float64
+	originalVerticalPosition   float64
+	originalHorizontalPosition float64
 }
 
 func (c *Player) move(dt float64) bool {
-	// Player actually is not moving, just jumping or lowering speed
+	// Player is not actually moving it's a fake movement. But it can be jumping or lowering speed
 	if c.isJumping {
 		if c.isFalling {
-			c.currentJumpHeight = c.currentJumpHeight - c.speed*10*dt
+			c.currentJumpHeight = c.currentJumpHeight - c.speed*dt
 			if c.currentJumpHeight <= 0 {
 				c.currentJumpHeight = 0
 				c.isFalling = false
 				c.isJumping = false
 			}
 		} else {
-			c.currentJumpHeight = c.currentJumpHeight + c.speed*10*dt
+			c.currentJumpHeight = c.currentJumpHeight + c.speed*dt
 			if c.currentJumpHeight >= c.jumpLimit {
-				c.currentJumpHeight -= 1
+				c.currentJumpHeight = c.currentJumpHeight - c.speed*dt
 				c.isFalling = true
 			}
 		}
 	} else if c.isLoweingSpeed {
-		c.currentBackPosition = c.currentBackPosition - c.speed*20*dt
-		if c.currentBackPosition < (c.width / 2) {
-			c.currentBackPosition += 1
-			c.isComingBack = true
-		}
-		if c.currentBackPosition > 200 && c.isComingBack {
-			c.isLoweingSpeed = false
-			c.isComingBack = false
-			c.currentBackPosition = 200
+		if c.isComingBack {
+			c.currentBackPosition = c.currentBackPosition - c.speed*dt
+			if c.currentBackPosition <= 0 {
+				c.currentBackPosition = 0
+				c.isLoweingSpeed = false
+				c.isComingBack = false
+			}
+		} else {
+			c.currentBackPosition = c.currentBackPosition + c.speed*dt
+			limit := c.originalHorizontalPosition - c.width/2
+			if c.currentBackPosition >= limit {
+				c.currentBackPosition = c.currentBackPosition - c.speed*dt
+				c.isComingBack = true
+			}
 		}
 	}
-	c.position.X = c.position.X + c.currentBackPosition*(c.speed*dt)
-	c.position.Y = c.originalVerticalPosition + c.currentJumpHeight*(c.speed*dt)
+	c.position.X = c.originalHorizontalPosition - c.currentBackPosition
+	c.position.Y = c.originalVerticalPosition + c.currentJumpHeight
 	if !c.isJumping && !c.isLoweingSpeed {
 		c.secondsToFlip = c.secondsToFlip + dt
 	}
@@ -232,7 +238,7 @@ func run() {
 			height:        49,
 			width:         60,
 			secondsToFlip: 0,
-			speed:         60,
+			speed:         500,
 			horizontalWay: 0,
 			inverted:      false,
 		},
@@ -243,7 +249,8 @@ func run() {
 		false,
 		0.0,
 		0.0,
-		200 + 49/2,
+		200.0 + 49/2,
+		200.0,
 	}
 
 	last := time.Now()
@@ -282,8 +289,16 @@ func run() {
 
 		if win.JustPressed(pixel.KeyUp) {
 			// If he already pressed the key, do nothing
-			if !player.isJumping {
+			if !player.isJumping && !player.isLoweingSpeed {
 				player.isJumping = true
+			}
+		}
+
+		// If User lowers speed
+
+		if win.JustPressed(pixel.KeyLeft) {
+			if !player.isJumping && !player.isLoweingSpeed {
+				player.isLoweingSpeed = true
 			}
 		}
 
