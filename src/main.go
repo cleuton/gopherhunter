@@ -10,6 +10,7 @@ import (
 
 	"github.com/gopxl/pixel/v2"
 	"github.com/gopxl/pixel/v2/backends/opengl"
+	"github.com/kbinani/screenshot"
 	"golang.org/x/exp/rand"
 )
 
@@ -86,7 +87,7 @@ func run() {
 		currentX         []float64
 		matrices         []pixel.Matrix
 		elementsToRemove []int
-		backSpeedFactor  float64 = 100
+		backSpeedFactor  float64 = 50.0
 		npcs                     = []Npc{}
 		//lastTimeNpcAdded           = time.Now()
 		//minNpcLaunchTime           = 5 // seconds
@@ -99,11 +100,23 @@ func run() {
 		//mugHorizontalWay           = 1.0
 		snakeHorizontalWay = -1.0
 	)
+	// Window width and height
+	windowWidth := 1024.0
+	windowHeight := 768.0
 
+	// Primary display
+	bounds := screenshot.GetDisplayBounds(0)
+	screenWidth := float64(bounds.Dx())
+	screenHeight := float64(bounds.Dy())
+
+	// Calcula a posição para centralizar a janela
+	posX := (float64(screenWidth) - windowWidth) / 2
+	posY := (float64(screenHeight) - windowHeight) / 2
 	cfg := opengl.WindowConfig{
-		Title:  "Gopher Hunter",
-		Bounds: pixel.R(0, 0, 1024, 768),
-		VSync:  true,
+		Title:    "Gopher Hunter",
+		Bounds:   pixel.R(0, 0, 1024, 768),
+		Position: pixel.V(posX, posY),
+		VSync:    true,
 	}
 	win, err := opengl.NewWindow(cfg)
 	if err != nil {
