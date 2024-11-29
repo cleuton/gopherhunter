@@ -67,6 +67,12 @@ type Mug struct {
 	flyingHeight float64
 }
 
+type Player struct {
+	CommonNpcProperties
+	currentJumpHeight   float64
+	currentBackPosition float64
+}
+
 func loadPicture(path string) (pixel.Picture, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -89,6 +95,7 @@ func run() {
 		elementsToRemove []int
 		backSpeedFactor  float64 = 50.0
 		npcs                     = []Npc{}
+		player           *Player
 		//lastTimeNpcAdded           = time.Now()
 		//minNpcLaunchTime           = 5 // seconds
 		//crabSpeed                  = 100.0
@@ -155,8 +162,35 @@ func run() {
 		}
 	}
 
+	gopherSpriteSheet, err := loadPicture("../images/gopherSpriteSheet.png")
+	if err != nil {
+		panic(err)
+	}
+
+	var gopherSprites []pixel.Rect
+	for x := gopherSpriteSheet.Bounds().Min.X; x < gopherSpriteSheet.Bounds().Max.X; x += 50 {
+		for y := gopherSpriteSheet.Bounds().Min.Y; y < gopherSpriteSheet.Bounds().Max.Y; y += 41 {
+			gopherSprites = append(gopherSprites, pixel.R(x, y, x+50, y+41))
+		}
+	}
+
+	player = &Player{
+		CommonNpcProperties{
+			sprite1:       pixel.NewSprite(gopherSpriteSheet, gopherSprites[0]),
+			sprite2:       pixel.NewSprite(gopherSpriteSheet, gopherSprites[1]),
+			position:      pixel.V(200, 200+41/2),
+			height:        41,
+			width:         50,
+			secondsToFlip: 0,
+			speed:         50,
+			horizontalWay: 0,
+			inverted:      false,
+		},
+		0,
+		0,
+	}
+
 	last := time.Now()
-	runOneTime := false
 
 	for !win.Closed() {
 		dt := time.Since(last).Seconds()
@@ -170,10 +204,27 @@ func run() {
 			matrices = append(matrices, pixel.IM.Moved(pixel.V(mouseX, 350)))
 		}
 
+		// Back scenario
+
+		elementsToRemove = []int{}
+		for i, element := range elements {
+			element.Draw(win, matrices[i])
+			currentX[i] = currentX[i] - (backSpeedFactor * dt)
+			if currentX[i] < -150 {
+				elementsToRemove = append(elementsToRemove, i)
+			} else {
+				matrices[i] = matrices[i].Moved(pixel.V(-backSpeedFactor*dt, 0))
+			}
+		}
+
+		// Player
+
+		player.move(dt)
+		player.draw(win)
+
 		//if time.Since(lastTimeNpcAdded).Seconds() > minNpcLaunchTime {
 
-		if !runOneTime {
-			runOneTime = true
+		if win.JustPressed(pixel.MouseButtonRight) {
 			fmt.Println("Adding npc")
 			// Add an Npc
 			snake := &Snake{
@@ -200,16 +251,8 @@ func run() {
 			npc.draw(win)
 		}
 
-		elementsToRemove = []int{}
-		for i, element := range elements {
-			element.Draw(win, matrices[i])
-			currentX[i] = currentX[i] - (backSpeedFactor * dt)
-			if currentX[i] < -150 {
-				elementsToRemove = append(elementsToRemove, i)
-			} else {
-				matrices[i] = matrices[i].Moved(pixel.V(-backSpeedFactor*dt, 0))
-			}
-		}
+		// Remove things out of scene:
+
 		for _, i := range elementsToRemove {
 			elements = append(elements[:i], elements[i+1:]...)
 			matrices = append(matrices[:i], matrices[i+1:]...)
