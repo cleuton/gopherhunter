@@ -41,6 +41,7 @@ func (c *CommonNpcProperties) move(dt float64) bool {
 	}
 	return c.position.X < (-c.width / 2)
 }
+
 func (c *CommonNpcProperties) draw(target pixel.Target) {
 	if c.inverted {
 		c.sprite2.Draw(target, pixel.IM.Moved(c.position))
@@ -69,8 +70,55 @@ type Mug struct {
 
 type Player struct {
 	CommonNpcProperties
-	currentJumpHeight   float64
-	currentBackPosition float64
+	jumpLimit                float64
+	isJumping                bool
+	isFalling                bool
+	isLoweingSpeed           bool
+	isComingBack             bool
+	currentJumpHeight        float64
+	currentBackPosition      float64
+	originalVerticalPosition float64
+}
+
+func (c *Player) move(dt float64) bool {
+	// Player actually is not moving, just jumping or lowering speed
+	if c.isJumping {
+		if c.isFalling {
+			c.currentJumpHeight = c.currentJumpHeight - c.speed*10*dt
+			if c.currentJumpHeight <= 0 {
+				c.currentJumpHeight = 0
+				c.isFalling = false
+				c.isJumping = false
+			}
+		} else {
+			c.currentJumpHeight = c.currentJumpHeight + c.speed*10*dt
+			if c.currentJumpHeight >= c.jumpLimit {
+				c.currentJumpHeight -= 1
+				c.isFalling = true
+			}
+		}
+	} else if c.isLoweingSpeed {
+		c.currentBackPosition = c.currentBackPosition - c.speed*20*dt
+		if c.currentBackPosition < (c.width / 2) {
+			c.currentBackPosition += 1
+			c.isComingBack = true
+		}
+		if c.currentBackPosition > 200 && c.isComingBack {
+			c.isLoweingSpeed = false
+			c.isComingBack = false
+			c.currentBackPosition = 200
+		}
+	}
+	c.position.X = c.position.X + c.currentBackPosition*(c.speed*dt)
+	c.position.Y = c.originalVerticalPosition + c.currentJumpHeight*(c.speed*dt)
+	if !c.isJumping && !c.isLoweingSpeed {
+		c.secondsToFlip = c.secondsToFlip + dt
+	}
+	if c.secondsToFlip > 0.5 {
+		c.inverted = !c.inverted
+		c.secondsToFlip = 0
+	}
+	return false
 }
 
 func loadPicture(path string) (pixel.Picture, error) {
@@ -106,6 +154,7 @@ func run() {
 		//crabHorizontalWay          = -1.0
 		//mugHorizontalWay           = 1.0
 		snakeHorizontalWay = -1.0
+		playerJumpLimit    = 500.0
 	)
 	// Window width and height
 	windowWidth := 1024.0
@@ -168,26 +217,33 @@ func run() {
 	}
 
 	var gopherSprites []pixel.Rect
-	for x := gopherSpriteSheet.Bounds().Min.X; x < gopherSpriteSheet.Bounds().Max.X; x += 50 {
-		for y := gopherSpriteSheet.Bounds().Min.Y; y < gopherSpriteSheet.Bounds().Max.Y; y += 41 {
-			gopherSprites = append(gopherSprites, pixel.R(x, y, x+50, y+41))
+	for x := gopherSpriteSheet.Bounds().Min.X; x < gopherSpriteSheet.Bounds().Max.X; x += 60 {
+		for y := gopherSpriteSheet.Bounds().Min.Y; y < gopherSpriteSheet.Bounds().Max.Y; y += 49 {
+			gopherSprites = append(gopherSprites, pixel.R(x, y, x+60, y+49))
 		}
 	}
 
+	// Create player
 	player = &Player{
 		CommonNpcProperties{
 			sprite1:       pixel.NewSprite(gopherSpriteSheet, gopherSprites[0]),
 			sprite2:       pixel.NewSprite(gopherSpriteSheet, gopherSprites[1]),
-			position:      pixel.V(200, 200+41/2),
-			height:        41,
-			width:         50,
+			position:      pixel.V(200, 200+49/2),
+			height:        49,
+			width:         60,
 			secondsToFlip: 0,
-			speed:         50,
+			speed:         60,
 			horizontalWay: 0,
 			inverted:      false,
 		},
-		0,
-		0,
+		playerJumpLimit,
+		false,
+		false,
+		false,
+		false,
+		0.0,
+		0.0,
+		200 + 49/2,
 	}
 
 	last := time.Now()
@@ -221,6 +277,15 @@ func run() {
 
 		player.move(dt)
 		player.draw(win)
+
+		// If User jumps
+
+		if win.JustPressed(pixel.KeyUp) {
+			// If he already pressed the key, do nothing
+			if !player.isJumping {
+				player.isJumping = true
+			}
+		}
 
 		//if time.Since(lastTimeNpcAdded).Seconds() > minNpcLaunchTime {
 
