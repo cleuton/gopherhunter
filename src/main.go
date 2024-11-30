@@ -14,6 +14,33 @@ import (
 	"golang.org/x/exp/rand"
 )
 
+// Common variables
+
+var (
+	snakeSpriteSheet pixel.Picture
+	snakeSprites     []pixel.Rect
+	elements         []*pixel.Sprite
+	currentX         []float64
+	matrices         []pixel.Matrix
+	elementsToRemove []int
+	backSpeedFactor  float64 = 50.0
+	npcs                     = []Npc{}
+	player           *Player
+	//lastTimeNpcAdded           = time.Now()
+	//minNpcLaunchTime           = 5 // seconds
+	//crabSpeed                  = 100.0
+	snakeSpeed = 100.0
+	//mugSpeed                   = 100.0
+	//crabJumpSpeed              = 100.0
+	//crabJumpMaxHeight          = 100.0
+	//crabHorizontalWay          = -1.0
+	//mugHorizontalWay           = 1.0
+	snakeHorizontalWay        = -1.0
+	playerJumpLimit           = 500.0
+	lastScenarioIndex         = 0
+	secondsLastScenarioLaunch = 6.0
+)
+
 type CommonNpcProperties struct {
 	sprite1       *pixel.Sprite
 	sprite2       *pixel.Sprite
@@ -61,6 +88,38 @@ type Crab struct {
 
 type Snake struct {
 	CommonNpcProperties
+}
+
+// NPC constructors
+
+func NewSnake() *Snake {
+	if snakeSpriteSheet == nil {
+		err := error(nil)
+		snakeSpriteSheet, err = loadPicture("../images/snakesSpriteSheet.png")
+		if err != nil {
+			panic(err)
+		}
+	}
+	if len(snakeSprites) == 0 {
+		for x := snakeSpriteSheet.Bounds().Min.X; x < snakeSpriteSheet.Bounds().Max.X; x += 128 {
+			for y := snakeSpriteSheet.Bounds().Min.Y; y < snakeSpriteSheet.Bounds().Max.Y; y += 31 {
+				snakeSprites = append(snakeSprites, pixel.R(x, y, x+128, y+31))
+			}
+		}
+	}
+	return &Snake{
+		CommonNpcProperties{
+			sprite1:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[0]),
+			sprite2:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[1]),
+			position:      pixel.V(1024, 200+31/2),
+			height:        31,
+			width:         120,
+			secondsToFlip: 0,
+			speed:         snakeSpeed,
+			horizontalWay: snakeHorizontalWay,
+			inverted:      false,
+		},
+	}
 }
 
 type Mug struct {
@@ -142,28 +201,6 @@ func loadPicture(path string) (pixel.Picture, error) {
 
 func run() {
 
-	var (
-		elements         []*pixel.Sprite
-		currentX         []float64
-		matrices         []pixel.Matrix
-		elementsToRemove []int
-		backSpeedFactor  float64 = 50.0
-		npcs                     = []Npc{}
-		player           *Player
-		//lastTimeNpcAdded           = time.Now()
-		//minNpcLaunchTime           = 5 // seconds
-		//crabSpeed                  = 100.0
-		snakeSpeed = 100.0
-		//mugSpeed                   = 100.0
-		//crabJumpSpeed              = 100.0
-		//crabJumpMaxHeight          = 100.0
-		//crabHorizontalWay          = -1.0
-		//mugHorizontalWay           = 1.0
-		snakeHorizontalWay        = -1.0
-		playerJumpLimit           = 500.0
-		lastScenarioIndex         = 0
-		secondsLastScenarioLaunch = 6.0
-	)
 	// Window width and height
 	windowWidth := 1024.0
 	windowHeight := 768.0
@@ -204,18 +241,6 @@ func run() {
 	for x := backSpriteSheet.Bounds().Min.X; x < backSpriteSheet.Bounds().Max.X; x += 300 {
 		for y := backSpriteSheet.Bounds().Min.Y; y < backSpriteSheet.Bounds().Max.Y; y += 300 {
 			backSprites = append(backSprites, pixel.R(x, y, x+300, y+300))
-		}
-	}
-
-	snakeSpriteSheet, err := loadPicture("../images/snakesSpriteSheet.png")
-	if err != nil {
-		panic(err)
-	}
-
-	var snakeSprites []pixel.Rect
-	for x := snakeSpriteSheet.Bounds().Min.X; x < snakeSpriteSheet.Bounds().Max.X; x += 128 {
-		for y := snakeSpriteSheet.Bounds().Min.Y; y < snakeSpriteSheet.Bounds().Max.Y; y += 31 {
-			snakeSprites = append(snakeSprites, pixel.R(x, y, x+128, y+31))
 		}
 	}
 
@@ -318,19 +343,7 @@ func run() {
 		if win.JustPressed(pixel.MouseButtonRight) {
 			fmt.Println("Adding npc")
 			// Add an Npc
-			snake := &Snake{
-				CommonNpcProperties{
-					sprite1:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[0]),
-					sprite2:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[1]),
-					position:      pixel.V(1024, 200+31/2),
-					height:        31,
-					width:         120,
-					secondsToFlip: 0,
-					speed:         snakeSpeed,
-					horizontalWay: snakeHorizontalWay,
-					inverted:      false,
-				},
-			}
+			snake := NewSnake()
 			npcs = append(npcs, snake)
 		}
 
@@ -348,6 +361,7 @@ func run() {
 			elements = append(elements[:i], elements[i+1:]...)
 			matrices = append(matrices[:i], matrices[i+1:]...)
 			currentX = append(currentX[:i], currentX[i+1:]...)
+			fmt.Println("Removing element")
 		}
 
 		for _, i := range npcsToRemove {
