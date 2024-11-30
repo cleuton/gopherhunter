@@ -159,8 +159,10 @@ func run() {
 		//crabJumpMaxHeight          = 100.0
 		//crabHorizontalWay          = -1.0
 		//mugHorizontalWay           = 1.0
-		snakeHorizontalWay = -1.0
-		playerJumpLimit    = 500.0
+		snakeHorizontalWay        = -1.0
+		playerJumpLimit           = 500.0
+		lastScenarioIndex         = 0
+		secondsLastScenarioLaunch = 6.0
 	)
 	// Window width and height
 	windowWidth := 1024.0
@@ -259,13 +261,22 @@ func run() {
 		dt := time.Since(last).Seconds()
 		last = time.Now()
 		sceneSprite.Draw(win, pixel.IM.Moved(win.Bounds().Center()))
-		if win.JustPressed(pixel.MouseButtonLeft) {
-			element := pixel.NewSprite(backSpriteSheet, backSprites[rand.Intn(len(backSprites))])
+		if secondsLastScenarioLaunch > 5 {
+			secondsLastScenarioLaunch = 0
+			x := 0
+			for {
+				x = rand.Intn(len(backSprites))
+				if x != lastScenarioIndex {
+					break
+				}
+			}
+			lastScenarioIndex = x
+			element := pixel.NewSprite(backSpriteSheet, backSprites[x])
 			elements = append(elements, element)
-			mouseX := win.MousePosition().X
-			currentX = append(currentX, mouseX)
-			matrices = append(matrices, pixel.IM.Moved(pixel.V(mouseX, 350)))
+			currentX = append(currentX, 1174)
+			matrices = append(matrices, pixel.IM.Moved(pixel.V(1174, 350)))
 		}
+		secondsLastScenarioLaunch += dt
 
 		// Back scenario
 
