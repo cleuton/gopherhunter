@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"os"
 	"time"
@@ -9,8 +10,11 @@ import (
 
 	"github.com/gopxl/pixel/v2"
 	"github.com/gopxl/pixel/v2/backends/opengl"
+	"github.com/gopxl/pixel/v2/ext/text"
 	"github.com/kbinani/screenshot"
 	"golang.org/x/exp/rand"
+	"golang.org/x/image/colornames"
+	"golang.org/x/image/font/basicfont"
 )
 
 // Common variables
@@ -42,6 +46,9 @@ var (
 	lastScenarioIndex         = 0
 	secondsLastScenarioLaunch = 6.0
 	npcStore                  = []func() Npc{}
+	secondsText               = "Running for: %.2f seconds"
+	secondsRunning            = 0.0
+	last                      = time.Now()
 )
 
 type CommonNpcProperties struct {
@@ -321,6 +328,17 @@ func loadPicture(path string) (pixel.Picture, error) {
 	return pixel.PictureDataFromImage(img), nil
 }
 
+func initGame() {
+	elements = []*pixel.Sprite{}
+	currentX = []float64{}
+	matrices = []pixel.Matrix{}
+	elementsToRemove = []int{}
+	npcs = []Npc{}
+	lastTimeNpcAdded = time.Now()
+	secondsRunning = 0.0
+	last = time.Now()
+}
+
 func run() {
 
 	// Window width and height
@@ -332,7 +350,7 @@ func run() {
 	screenWidth := float64(bounds.Dx())
 	screenHeight := float64(bounds.Dy())
 
-	// Calcula a posição para centralizar a janela
+	// Center game window on screen
 	posX := (float64(screenWidth) - windowWidth) / 2
 	posY := (float64(screenHeight) - windowHeight) / 2
 	cfg := opengl.WindowConfig{
@@ -352,12 +370,37 @@ func run() {
 		panic(err)
 	}
 
+	// Text setup
+
+	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
+	basicTxt := text.New(pixel.V(10, 160), basicAtlas)
+	basicTxt.LineHeight = basicAtlas.LineHeight() * 1.5
+	basicTxt.Color = colornames.Yellow
+	fmt.Fprintln(basicTxt, "You lost! Press Y to play again or ESC to exit")
+	seconds := text.New(pixel.V(10, 15), basicAtlas)
+	seconds.LineHeight = basicAtlas.LineHeight() * 1.5
+	seconds.Color = colornames.Black
+	fmt.Fprintf(seconds, secondsText, secondsRunning)
+	helper := text.New(pixel.V(10, 40), basicAtlas)
+	helper.LineHeight = basicAtlas.LineHeight() * 1.5
+	helper.Color = colornames.Lightcyan
+	fmt.Fprintln(helper, "Press UP to jump, LEFT to lower speed, ESC to exit")
+
+	// Sprites loading
+
 	sceneSprite := pixel.NewSprite(pic, pic.Bounds())
 
 	backSpriteSheet, err := loadPicture("../images/back_spritesheet.png")
 	if err != nil {
 		panic(err)
 	}
+
+	boomPic, err := loadPicture("../images/boom.png")
+	if err != nil {
+		panic(err)
+	}
+
+	boomSprite := pixel.NewSprite(boomPic, boomPic.Bounds())
 
 	var backSprites []pixel.Rect
 	for x := backSpriteSheet.Bounds().Min.X; x < backSpriteSheet.Bounds().Max.X; x += 300 {
@@ -410,12 +453,16 @@ func run() {
 		func() Npc { return NewCup() },
 	}
 
-	last := time.Now()
-
+	last = time.Now()
 	for !win.Closed() {
 		dt := time.Since(last).Seconds()
+		secondsRunning = secondsRunning + 1*dt
 		last = time.Now()
 		sceneSprite.Draw(win, pixel.IM.Moved(win.Bounds().Center()))
+		seconds.Clear()
+		fmt.Fprintf(seconds, secondsText, secondsRunning)
+		helper.Draw(win, pixel.IM.Scaled(helper.Orig, 2))
+		seconds.Draw(win, pixel.IM.Scaled(seconds.Orig, 2))
 		if secondsLastScenarioLaunch > 5 {
 			secondsLastScenarioLaunch = 0
 			x := 0
@@ -483,10 +530,25 @@ func run() {
 		// Did we have a collision?
 		for _, npc := range npcs {
 			if npc.collide(player.rect()) {
-				win.Clear(pixel.RGBA{R: 1, G: 0, B: 0, A: 1})
-				win.Update()
-				time.Sleep(2 * time.Second)
-				return
+				// Game Over
+				playAgain := false
+				for !win.Closed() {
+					boomSprite.Draw(win, pixel.IM.Moved(player.position))
+					basicTxt.Draw(win, pixel.IM.Scaled(basicTxt.Orig, 3))
+					if win.JustPressed(pixel.KeyY) {
+						playAgain = true
+						break
+					}
+					if win.JustPressed(pixel.KeyEscape) {
+						playAgain = false
+						break
+					}
+					win.Update()
+				}
+				if !playAgain {
+					return
+				}
+				initGame()
 			}
 		}
 
@@ -508,6 +570,10 @@ func run() {
 
 		for _, i := range npcsToRemove {
 			npcs = append(npcs[:i], npcs[i+1:]...)
+		}
+
+		if win.JustPressed(pixel.KeyEscape) {
+			return
 		}
 
 		win.Update()
