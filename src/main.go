@@ -26,8 +26,8 @@ var (
 	backSpeedFactor  float64 = 50.0
 	npcs                     = []Npc{}
 	player           *Player
-	//lastTimeNpcAdded           = time.Now()
-	//minNpcLaunchTime           = 5 // seconds
+	lastTimeNpcAdded = time.Now()
+	minNpcLaunchTime = 5 // seconds
 	//crabSpeed                  = 100.0
 	snakeSpeed = 100.0
 	//mugSpeed                   = 100.0
@@ -301,7 +301,7 @@ func run() {
 			currentX = append(currentX, 1174)
 			matrices = append(matrices, pixel.IM.Moved(pixel.V(1174, 350)))
 		}
-		secondsLastScenarioLaunch += dt
+		secondsLastScenarioLaunch += 1 * dt
 
 		// Back scenario
 
@@ -338,13 +338,24 @@ func run() {
 			}
 		}
 
-		//if time.Since(lastTimeNpcAdded).Seconds() > minNpcLaunchTime {
-
-		if win.JustPressed(pixel.MouseButtonRight) {
-			fmt.Println("Adding npc")
-			// Add an Npc
-			snake := NewSnake()
-			npcs = append(npcs, snake)
+		if time.Since(lastTimeNpcAdded).Seconds() >= float64(minNpcLaunchTime) {
+			launchNpcFactor := rand.Intn(2)
+			doubleNpcLaunchFactor := rand.Intn(2)
+			fmt.Printf("Launch factor: %d\n", launchNpcFactor)
+			if launchNpcFactor == 1 {
+				fmt.Println("Adding npc:")
+				// Add an Npc
+				snake := NewSnake()
+				npcs = append(npcs, snake)
+				if doubleNpcLaunchFactor == 1 {
+					// add another Npc close to the first one
+					fmt.Println("Adding another npc:")
+					snake2 := NewSnake()
+					snake2.position.X = snake.position.X + 600
+					npcs = append(npcs, snake2)
+				}
+			}
+			lastTimeNpcAdded = time.Now()
 		}
 
 		npcsToRemove := []int{}
