@@ -35,7 +35,7 @@ var (
 	crabSpeed  = 120.0
 	//mugSpeed                   = 100.0
 	//crabJumpSpeed = 100.0
-	//crabJumpMaxHeight          = 100.0
+	crabJumpMaxHeight = 250.0
 	crabHorizontalWay = -1.0
 	//mugHorizontalWay           = 1.0
 	snakeHorizontalWay        = -1.0
@@ -87,20 +87,43 @@ func (c CommonNpcProperties) colide(rect pixel.Rect) bool {
 
 type Crab struct {
 	CommonNpcProperties
-	currentJumpHeight float64
+	currentJumpHeight        float64
+	isJumping                bool
+	isFalling                bool
+	jumpLimit                float64
+	originalVerticalPosition float64
 }
 
 func (c *Crab) move(dt float64) bool {
-	if c.currentJumpHeight == 0 {
-		c.currentJumpHeight = 1
+	// Crabs can jump and fall
+	fmt.Printf("Crab move. IsJumping: %v isFalling: %v currentJumpHeight: %f jumpLimit: %f OriginalVerticalPosition: %f\n", c.isJumping, c.isFalling, c.currentJumpHeight, c.jumpLimit, c.originalVerticalPosition)
+	if c.isJumping {
+		if c.isFalling {
+			c.currentJumpHeight = c.currentJumpHeight - (c.speed * 2 * dt)
+			if c.currentJumpHeight <= 0 {
+				c.currentJumpHeight = 0
+				c.isFalling = false
+				c.isJumping = false
+			}
+		} else {
+			c.currentJumpHeight = c.currentJumpHeight + (c.speed * 2 * dt)
+			fmt.Printf("CurrentJumpHeight: %f\n", c.currentJumpHeight)
+			if c.currentJumpHeight >= c.jumpLimit {
+				c.currentJumpHeight = c.currentJumpHeight - (c.speed * 2 * dt)
+				c.isFalling = true
+			}
+		}
 	}
 	c.position.X = c.position.X + c.horizontalWay*(c.speed*dt)
-	c.position.Y = c.position.Y + c.currentJumpHeight
-	c.currentJumpHeight = c.currentJumpHeight - c.speed*dt
-	if c.currentJumpHeight <= 0 {
-		c.currentJumpHeight = 0
+	c.position.Y = c.originalVerticalPosition + c.currentJumpHeight
+	if !c.isJumping {
+		c.secondsToFlip = c.secondsToFlip + dt
+		// Let's add a chance to jump
+		if rand.Intn(90) == 1 {
+			c.isJumping = true
+			fmt.Printf("crab will jump %v\n", c.isJumping)
+		}
 	}
-	c.secondsToFlip = c.secondsToFlip + dt
 	if c.secondsToFlip > 0.5 {
 		c.inverted = !c.inverted
 		c.secondsToFlip = 0
@@ -236,6 +259,10 @@ func NewCrab() *Crab {
 			inverted:      false,
 		},
 		0.0,
+		false,
+		false,
+		crabJumpMaxHeight,
+		200.0 + 41.0/2.0,
 	}
 }
 
