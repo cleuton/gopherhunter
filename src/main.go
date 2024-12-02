@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"os"
 	"time"
@@ -17,27 +16,27 @@ import (
 // Common variables
 
 var (
-	snakeSpriteSheet pixel.Picture
-	snakeSprites     []pixel.Rect
-	crabSpriteSheet  pixel.Picture
-	crabSprites      []pixel.Rect
-	elements         []*pixel.Sprite
-	currentX         []float64
-	matrices         []pixel.Matrix
-	elementsToRemove []int
-	backSpeedFactor  float64 = 50.0
-	npcs                     = []Npc{}
-	player           *Player
-	lastTimeNpcAdded = time.Now()
-	minNpcLaunchTime = 5 // seconds
-	//crabSpeed                  = 100.0
-	snakeSpeed = 100.0
-	crabSpeed  = 120.0
-	//mugSpeed                   = 100.0
-	//crabJumpSpeed = 100.0
-	crabJumpMaxHeight = 250.0
-	crabHorizontalWay = -1.0
-	//mugHorizontalWay           = 1.0
+	cupSpriteSheet            pixel.Picture
+	cupSprites                []pixel.Rect
+	snakeSpriteSheet          pixel.Picture
+	snakeSprites              []pixel.Rect
+	crabSpriteSheet           pixel.Picture
+	crabSprites               []pixel.Rect
+	elements                  []*pixel.Sprite
+	currentX                  []float64
+	matrices                  []pixel.Matrix
+	elementsToRemove          []int
+	backSpeedFactor           float64 = 50.0
+	npcs                              = []Npc{}
+	player                    *Player
+	lastTimeNpcAdded          = time.Now()
+	minNpcLaunchTime          = 5 // seconds
+	snakeSpeed                = 100.0
+	crabSpeed                 = 120.0
+	cupSpeed                  = 80.0
+	crabJumpMaxHeight         = 250.0
+	crabHorizontalWay         = -1.0
+	cupHorizontalWay          = -1.0
 	snakeHorizontalWay        = -1.0
 	playerJumpLimit           = 500.0
 	lastScenarioIndex         = 0
@@ -96,7 +95,6 @@ type Crab struct {
 
 func (c *Crab) move(dt float64) bool {
 	// Crabs can jump and fall
-	fmt.Printf("Crab move. IsJumping: %v isFalling: %v currentJumpHeight: %f jumpLimit: %f OriginalVerticalPosition: %f\n", c.isJumping, c.isFalling, c.currentJumpHeight, c.jumpLimit, c.originalVerticalPosition)
 	if c.isJumping {
 		if c.isFalling {
 			c.currentJumpHeight = c.currentJumpHeight - (c.speed * 2 * dt)
@@ -107,7 +105,6 @@ func (c *Crab) move(dt float64) bool {
 			}
 		} else {
 			c.currentJumpHeight = c.currentJumpHeight + (c.speed * 2 * dt)
-			fmt.Printf("CurrentJumpHeight: %f\n", c.currentJumpHeight)
 			if c.currentJumpHeight >= c.jumpLimit {
 				c.currentJumpHeight = c.currentJumpHeight - (c.speed * 2 * dt)
 				c.isFalling = true
@@ -121,7 +118,6 @@ func (c *Crab) move(dt float64) bool {
 		// Let's add a chance to jump
 		if rand.Intn(90) == 1 {
 			c.isJumping = true
-			fmt.Printf("crab will jump %v\n", c.isJumping)
 		}
 	}
 	if c.secondsToFlip > 0.5 {
@@ -135,9 +131,8 @@ type Snake struct {
 	CommonNpcProperties
 }
 
-type Mug struct {
+type Cup struct {
 	CommonNpcProperties
-	flyingHeight float64
 }
 
 type Player struct {
@@ -266,6 +261,43 @@ func NewCrab() *Crab {
 	}
 }
 
+func getCupYPosition() float64 {
+	upperLimit := 768.0 - (60.0 / 2.0) - 50.0
+	lowerLimit := 200.0 + (60 / 2.0) + 50.0
+	cupPos := float64(rand.Intn(int(upperLimit-lowerLimit))) + 50.0 + lowerLimit
+	return cupPos
+}
+
+func NewCup() *Cup {
+	if cupSpriteSheet == nil {
+		err := error(nil)
+		cupSpriteSheet, err = loadPicture("../images/cupSpriteSheet.png")
+		if err != nil {
+			panic(err)
+		}
+	}
+	if len(cupSprites) == 0 {
+		for x := cupSpriteSheet.Bounds().Min.X; x < cupSpriteSheet.Bounds().Max.X; x += 42 {
+			for y := cupSpriteSheet.Bounds().Min.Y; y < cupSpriteSheet.Bounds().Max.Y; y += 60 {
+				cupSprites = append(cupSprites, pixel.R(x, y, x+42, y+60))
+			}
+		}
+	}
+	return &Cup{
+		CommonNpcProperties{
+			sprite1:       pixel.NewSprite(cupSpriteSheet, cupSprites[0]),
+			sprite2:       pixel.NewSprite(cupSpriteSheet, cupSprites[1]),
+			position:      pixel.V(1024, getCupYPosition()),
+			height:        60,
+			width:         42,
+			secondsToFlip: 0,
+			speed:         cupSpeed / float64(rand.Intn(3)+1),
+			horizontalWay: cupHorizontalWay,
+			inverted:      false,
+		},
+	}
+}
+
 func loadPicture(path string) (pixel.Picture, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -365,6 +397,7 @@ func run() {
 	npcStore = []func() Npc{
 		func() Npc { return NewSnake() },
 		func() Npc { return NewCrab() },
+		func() Npc { return NewCup() },
 	}
 
 	last := time.Now()
@@ -412,7 +445,7 @@ func run() {
 
 		if win.JustPressed(pixel.KeyUp) {
 			// If he already pressed the key, do nothing
-			if !player.isJumping && !player.isLoweingSpeed {
+			if !player.isJumping { //&& !player.isLoweingSpeed {
 				player.isJumping = true
 			}
 		}
@@ -429,10 +462,8 @@ func run() {
 
 		if time.Since(lastTimeNpcAdded).Seconds() >= float64(minNpcLaunchTime) {
 			launchNpcFactor := rand.Intn(2)
-			fmt.Printf("Launch factor: %d\n", launchNpcFactor)
 			if launchNpcFactor == 1 {
 				whichNpc := rand.Intn(len(npcStore))
-				fmt.Println("Adding npc:")
 				// Add an Npc
 				npcs = append(npcs, npcStore[whichNpc]())
 			}
@@ -453,11 +484,9 @@ func run() {
 			elements = append(elements[:i], elements[i+1:]...)
 			matrices = append(matrices[:i], matrices[i+1:]...)
 			currentX = append(currentX[:i], currentX[i+1:]...)
-			fmt.Println("Removing element")
 		}
 
 		for _, i := range npcsToRemove {
-			fmt.Println("Removing npc")
 			npcs = append(npcs[:i], npcs[i+1:]...)
 		}
 
