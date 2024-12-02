@@ -59,7 +59,7 @@ type CommonNpcProperties struct {
 type Npc interface {
 	move(dt float64) bool
 	draw(pixel.Target)
-	colide(pixel.Rect) bool
+	collide(pixel.Rect) bool
 }
 
 func (c *CommonNpcProperties) move(dt float64) bool {
@@ -80,8 +80,12 @@ func (c *CommonNpcProperties) draw(target pixel.Target) {
 	}
 }
 
-func (c CommonNpcProperties) colide(rect pixel.Rect) bool {
-	return rect.Contains(c.position)
+func (c CommonNpcProperties) collide(rect pixel.Rect) bool {
+	lowerLeft := pixel.V(c.position.X-c.width/2, c.position.Y-c.height/2)
+	upperRight := pixel.V(c.position.X+c.width/2, c.position.Y+c.height/2)
+	elementRect := pixel.R(lowerLeft.X, lowerLeft.Y, upperRight.X, upperRight.Y)
+	collision := elementRect.Intersect(rect)
+	return collision.Area() > 0
 }
 
 type Crab struct {
@@ -148,11 +152,17 @@ type Player struct {
 	originalHorizontalPosition float64
 }
 
+func (c Player) rect() pixel.Rect {
+	lowerLeft := pixel.V(c.position.X-c.width/2, c.position.Y-c.height/2)
+	upperRight := pixel.V(c.position.X+c.width/2, c.position.Y+c.height/2)
+	return pixel.R(lowerLeft.X, lowerLeft.Y, upperRight.X, upperRight.Y)
+}
+
 func (c *Player) move(dt float64) bool {
 	// Player is not actually moving it's a fake movement. But it can be jumping or lowering speed
 	if c.isJumping {
 		if c.isFalling {
-			c.currentJumpHeight = c.currentJumpHeight - c.speed*dt
+			c.currentJumpHeight = c.currentJumpHeight - c.speed*0.8*dt
 			if c.currentJumpHeight <= 0 {
 				c.currentJumpHeight = 0
 				c.isFalling = false
@@ -468,6 +478,16 @@ func run() {
 				npcs = append(npcs, npcStore[whichNpc]())
 			}
 			lastTimeNpcAdded = time.Now()
+		}
+
+		// Did we have a collision?
+		for _, npc := range npcs {
+			if npc.collide(player.rect()) {
+				win.Clear(pixel.RGBA{R: 1, G: 0, B: 0, A: 1})
+				win.Update()
+				time.Sleep(2 * time.Second)
+				return
+			}
 		}
 
 		npcsToRemove := []int{}
