@@ -19,6 +19,8 @@ import (
 var (
 	snakeSpriteSheet pixel.Picture
 	snakeSprites     []pixel.Rect
+	crabSpriteSheet  pixel.Picture
+	crabSprites      []pixel.Rect
 	elements         []*pixel.Sprite
 	currentX         []float64
 	matrices         []pixel.Matrix
@@ -30,15 +32,17 @@ var (
 	minNpcLaunchTime = 5 // seconds
 	//crabSpeed                  = 100.0
 	snakeSpeed = 100.0
+	crabSpeed  = 120.0
 	//mugSpeed                   = 100.0
-	//crabJumpSpeed              = 100.0
+	//crabJumpSpeed = 100.0
 	//crabJumpMaxHeight          = 100.0
-	//crabHorizontalWay          = -1.0
+	crabHorizontalWay = -1.0
 	//mugHorizontalWay           = 1.0
 	snakeHorizontalWay        = -1.0
 	playerJumpLimit           = 500.0
 	lastScenarioIndex         = 0
 	secondsLastScenarioLaunch = 6.0
+	npcStore                  = []func() Npc{}
 )
 
 type CommonNpcProperties struct {
@@ -86,40 +90,26 @@ type Crab struct {
 	currentJumpHeight float64
 }
 
-type Snake struct {
-	CommonNpcProperties
+func (c *Crab) move(dt float64) bool {
+	if c.currentJumpHeight == 0 {
+		c.currentJumpHeight = 1
+	}
+	c.position.X = c.position.X + c.horizontalWay*(c.speed*dt)
+	c.position.Y = c.position.Y + c.currentJumpHeight
+	c.currentJumpHeight = c.currentJumpHeight - c.speed*dt
+	if c.currentJumpHeight <= 0 {
+		c.currentJumpHeight = 0
+	}
+	c.secondsToFlip = c.secondsToFlip + dt
+	if c.secondsToFlip > 0.5 {
+		c.inverted = !c.inverted
+		c.secondsToFlip = 0
+	}
+	return c.position.X < (-c.width / 2)
 }
 
-// NPC constructors
-
-func NewSnake() *Snake {
-	if snakeSpriteSheet == nil {
-		err := error(nil)
-		snakeSpriteSheet, err = loadPicture("../images/snakesSpriteSheet.png")
-		if err != nil {
-			panic(err)
-		}
-	}
-	if len(snakeSprites) == 0 {
-		for x := snakeSpriteSheet.Bounds().Min.X; x < snakeSpriteSheet.Bounds().Max.X; x += 128 {
-			for y := snakeSpriteSheet.Bounds().Min.Y; y < snakeSpriteSheet.Bounds().Max.Y; y += 31 {
-				snakeSprites = append(snakeSprites, pixel.R(x, y, x+128, y+31))
-			}
-		}
-	}
-	return &Snake{
-		CommonNpcProperties{
-			sprite1:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[0]),
-			sprite2:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[1]),
-			position:      pixel.V(1024, 200+31/2),
-			height:        31,
-			width:         120,
-			secondsToFlip: 0,
-			speed:         snakeSpeed,
-			horizontalWay: snakeHorizontalWay,
-			inverted:      false,
-		},
-	}
+type Snake struct {
+	CommonNpcProperties
 }
 
 type Mug struct {
@@ -184,6 +174,69 @@ func (c *Player) move(dt float64) bool {
 		c.secondsToFlip = 0
 	}
 	return false
+}
+
+// NPC constructor functions
+
+func NewSnake() *Snake {
+	if snakeSpriteSheet == nil {
+		err := error(nil)
+		snakeSpriteSheet, err = loadPicture("../images/snakesSpriteSheet.png")
+		if err != nil {
+			panic(err)
+		}
+	}
+	if len(snakeSprites) == 0 {
+		for x := snakeSpriteSheet.Bounds().Min.X; x < snakeSpriteSheet.Bounds().Max.X; x += 128 {
+			for y := snakeSpriteSheet.Bounds().Min.Y; y < snakeSpriteSheet.Bounds().Max.Y; y += 31 {
+				snakeSprites = append(snakeSprites, pixel.R(x, y, x+128, y+31))
+			}
+		}
+	}
+	return &Snake{
+		CommonNpcProperties{
+			sprite1:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[0]),
+			sprite2:       pixel.NewSprite(snakeSpriteSheet, snakeSprites[1]),
+			position:      pixel.V(1024, 200+31/2),
+			height:        31,
+			width:         120,
+			secondsToFlip: 0,
+			speed:         snakeSpeed,
+			horizontalWay: snakeHorizontalWay,
+			inverted:      false,
+		},
+	}
+}
+
+func NewCrab() *Crab {
+	if crabSpriteSheet == nil {
+		err := error(nil)
+		crabSpriteSheet, err = loadPicture("../images/crabSpriteSheet.png")
+		if err != nil {
+			panic(err)
+		}
+	}
+	if len(crabSprites) == 0 {
+		for x := crabSpriteSheet.Bounds().Min.X; x < crabSpriteSheet.Bounds().Max.X; x += 59 {
+			for y := crabSpriteSheet.Bounds().Min.Y; y < crabSpriteSheet.Bounds().Max.Y; y += 41 {
+				crabSprites = append(crabSprites, pixel.R(x, y, x+59, y+41))
+			}
+		}
+	}
+	return &Crab{
+		CommonNpcProperties{
+			sprite1:       pixel.NewSprite(crabSpriteSheet, crabSprites[0]),
+			sprite2:       pixel.NewSprite(crabSpriteSheet, crabSprites[1]),
+			position:      pixel.V(1024, 200+41/2),
+			height:        41,
+			width:         59,
+			secondsToFlip: 0,
+			speed:         crabSpeed,
+			horizontalWay: crabHorizontalWay,
+			inverted:      false,
+		},
+		0.0,
+	}
 }
 
 func loadPicture(path string) (pixel.Picture, error) {
@@ -280,6 +333,13 @@ func run() {
 		200.0,
 	}
 
+	// Init npc store
+
+	npcStore = []func() Npc{
+		func() Npc { return NewSnake() },
+		func() Npc { return NewCrab() },
+	}
+
 	last := time.Now()
 
 	for !win.Closed() {
@@ -338,22 +398,16 @@ func run() {
 			}
 		}
 
+		// Launch Npcs?
+
 		if time.Since(lastTimeNpcAdded).Seconds() >= float64(minNpcLaunchTime) {
 			launchNpcFactor := rand.Intn(2)
-			doubleNpcLaunchFactor := rand.Intn(2)
 			fmt.Printf("Launch factor: %d\n", launchNpcFactor)
 			if launchNpcFactor == 1 {
+				whichNpc := rand.Intn(len(npcStore))
 				fmt.Println("Adding npc:")
 				// Add an Npc
-				snake := NewSnake()
-				npcs = append(npcs, snake)
-				if doubleNpcLaunchFactor == 1 {
-					// add another Npc close to the first one
-					fmt.Println("Adding another npc:")
-					snake2 := NewSnake()
-					snake2.position.X = snake.position.X + 600
-					npcs = append(npcs, snake2)
-				}
+				npcs = append(npcs, npcStore[whichNpc]())
 			}
 			lastTimeNpcAdded = time.Now()
 		}
